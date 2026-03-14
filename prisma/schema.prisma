@@ -1,0 +1,189 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id            String         @id @default(cuid())
+  name          String?
+  email         String         @unique
+  emailVerified DateTime?
+  password      String?
+  image         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  
+  learningPaths LearningPath[]
+  nodes         LearningNode[]
+  resources     Resource[]
+  notes         Note[]
+  records       LearningRecord[]
+  accounts      Account[]
+  sessions      Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model LearningPath {
+  id          String        @id @default(cuid())
+  title       String
+  description String?
+  color       String        @default("#3B82F6")
+  icon        String?
+  isPublic    Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nodes       LearningNode[]
+  tags        PathTag[]
+  
+  @@index([userId])
+}
+
+model LearningNode {
+  id          String      @id @default(cuid())
+  title       String
+  description String?
+  status      String      @default("NOT_STARTED") // NOT_STARTED, IN_PROGRESS, COMPLETED, PAUSED
+  order       Int         @default(0)
+  startDate   DateTime?
+  endDate     DateTime?
+  duration    Int?        // in minutes
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  pathId      String
+  path        LearningPath @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resources   Resource[]
+  notes       Note[]
+  records     LearningRecord[]
+  prerequisites NodePrerequisite[] @relation("NodePrerequisites")
+  dependents  NodePrerequisite[] @relation("NodeDependents")
+  
+  @@index([pathId])
+  @@index([userId])
+  @@index([status])
+}
+
+model NodePrerequisite {
+  id             String @id @default(cuid())
+  nodeId         String
+  prerequisiteId String
+  
+  node           LearningNode @relation("NodePrerequisites", fields: [nodeId], references: [id], onDelete: Cascade)
+  prerequisite   LearningNode @relation("NodeDependents", fields: [prerequisiteId], references: [id], onDelete: Cascade)
+  
+  @@unique([nodeId, prerequisiteId])
+}
+
+model Resource {
+  id          String       @id @default(cuid())
+  title       String
+  url         String
+  type        String      @default("ARTICLE") // ARTICLE, VIDEO, BOOK, COURSE, DOCUMENTATION, TUTORIAL, OTHER
+  description String?
+  duration    Int?         // in minutes
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  
+  nodeId      String
+  node        LearningNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([nodeId])
+  @@index([type])
+}
+
+model Note {
+  id        String       @id @default(cuid())
+  title     String
+  content   String       // Markdown content
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  
+  nodeId    String
+  node      LearningNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([nodeId])
+}
+
+model Tag {
+  id    String    @id @default(cuid())
+  name  String    @unique
+  paths PathTag[]
+}
+
+model PathTag {
+  pathId String
+  tagId  String
+  
+  path   LearningPath @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  tag    Tag          @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  
+  @@id([pathId, tagId])
+}
+
+model LearningRecord {
+  id          String      @id @default(cuid())
+  type        String      @default("STUDY") // STUDY, PRACTICE, REVIEW, PROJECT
+  duration    Int         // in minutes
+  note        String?
+  recordedAt  DateTime    @default(now())
+  createdAt   DateTime    @default(now())
+  
+  nodeId      String
+  node        LearningNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([nodeId])
+  @@index([userId])
+  @@index([recordedAt])
+}
